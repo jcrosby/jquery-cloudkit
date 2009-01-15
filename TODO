@@ -1,0 +1,11 @@
+0.2
+- implement version history/diff/merge fallback for stale update attempts
+
+Backlog
+- listen for live remote updates
+- undo
+- parse API paging metadata from CloudKit once automatic throttling is
+  implemented
+- deferred loading of large datasets
+- offline support - gears/titanium
+- use all discovery information available from CloudKit

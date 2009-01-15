@@ -1,0 +1,113 @@
+jquery.cloudkit.js
+------------------
+An in-browser queryable JSON store for CloudKit.
+
+This plugin is the result of combining TaffyDB, patched for asynchronous
+operation, with CloudKit and bundling it as a jQuery plugin. This should still
+be considered experimental and subject to change.
+
+See also:
+  CloudKit: http://getcloudkit.com
+  TaffyDB: http://taffydb.com
+
+
+Usage
+-----
+
+Assuming a CloudKit app hosting "notes" and "things" collections:
+
+var store = $.cloudkit;
+store.boot({
+  success: function() {
+    // insert a 'thing'
+    store.collection('things').insert({name:"box"}, {
+      success: function(index) {
+        // do something with your data
+      }
+    });
+    
+    // insert a 'note'
+    store.collection('notes').insert({foo:"bar"}, {
+      success: function(index) {
+        // do something with the note
+      }
+    });
+    
+    // update all 'things', setting their name to "boxen".
+    // See the TaffyDB docs for the optional second "where" parameter
+    // (excluded below) specifying a subset of documents to update.
+    store.collection('things').update({name:"boxen"}, {
+      success: function(indexes) {
+        // do something with your updated data
+      }
+    });
+    
+    // delete all 'things' where name is "boxen".
+    store.collection('things').remove({name:"boxen"}, {
+      success: function(indexes) {
+        // your data is now removed
+      }
+    });
+    
+    // get all 'notes'
+    var notes = store.collection('notes').get();
+  }
+});
+
+This only scratches the surface of the API provided by TaffyDB. See the TaffyDB
+site for advanced JSON queries. Keep in mind, the version of TaffyDB used in
+this plugin has been patched to add success and error callbacks for insert,
+update, and remove methods. All other methods should work identically.
+
+
+Building
+--------
+
+To build development and minified versions of the plugin:
+
+  $ rake dist
+
+The jsmin gem is required for building the minified version. To install:
+
+  $ gem install jsmin
+
+
+Running the Tests
+-----------------
+
+The CloudKit gem (0.10.0 or greater) is required for testing. To install:
+
+  $ gem install cloudkit
+
+If you are running an older version of CloudKit, you can upgrade like this:
+
+  $ gem update cloudkit
+
+To Test:
+
+  $ rake
+
+Note: You may need to refresh your browser if it launches before rack finishes
+starting the test app.
+
+
+Copyright (c) 2008, 2009 Jon Crosby http://joncrosby.me
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+'Software'), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
