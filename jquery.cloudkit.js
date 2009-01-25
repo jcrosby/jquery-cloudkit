@@ -92,7 +92,7 @@
         },
         processData: false,
         complete: function(response, statusText) {
-          metadata = TAFFY.JSON.parse(response.responseText);
+          meta[localId] = TAFFY.JSON.parse(response.responseText);
           data['___cloudkit_local_id___'] = localId;
           if (response.status == 200) {
             options.success();
