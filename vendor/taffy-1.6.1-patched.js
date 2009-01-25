@@ -186,8 +186,8 @@ var TAFFY = function (obj) {
                 TOb[updateDex] = T.mergeObj(TOb[updateDex], updateObj);
                 chain_updates(updateObj, updateIndex, position+1, updateCallback, options);
             },
-            error: function() {
-                options.error();
+            error: function(status) {
+                options.error(status);
             }
         });
     };
@@ -203,8 +203,8 @@ var TAFFY = function (obj) {
                 TOb[removeIndex[position]] = 'remove';
                 chain_removals(removeIndex, position+1, removeCallback, options);
             },
-            error: function() {
-                options.error();
+            error: function(status) {
+                options.error(status);
             }
         });
     };
@@ -562,8 +562,8 @@ var TAFFY = function (obj) {
                 bTIA();
                 options.success(removeIndex);
             },
-            error: function() {
-                options.error();
+            error: function(status) {
+                options.error(status);
             }
         });
     } ,
@@ -625,8 +625,8 @@ var TAFFY = function (obj) {
             success: function() {
                 options.success(updateIndex);
             },
-            error: function() {
-                options.error();
+            error: function(status) {
+                options.error(status);
             }
         });
     } ,

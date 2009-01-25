@@ -37,7 +37,7 @@
           collectionURIs = data.uris;
           options.success();
         } else if (response.status >= 400) {
-          options.error(data.error);
+          options.error(response.status);
         } else {
           options.error('unexpected error');
         }
@@ -71,7 +71,7 @@
           if (response.status == 201) {
             options.success();
           } else {
-            options.error();
+            options.error(response.status);
           }
         }
       });
@@ -97,7 +97,7 @@
           if (response.status == 200) {
             options.success();
           } else {
-            options.error();
+            options.error(response.status);
           }
         }
       });
@@ -122,7 +122,7 @@
             meta['deleted'] = true;
             options.success();
           } else {
-            options.error();
+            options.error(response.status);
           }
         }
       });
@@ -158,7 +158,7 @@
           }
           options.success();
         } else {
-          options.error();
+          options.error(response.status);
         }
       }
     });
@@ -185,13 +185,13 @@
             success: function() {
               options.success();
             },
-            error: function() {
-              options.error();
+            error: function(status) {
+              options.error(status);
             }
           });
         },
-        error: function() {
-          options.error();
+        error: function(status) {
+          options.error(status);
         }
       });
     },
