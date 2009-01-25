@@ -147,8 +147,9 @@
           for (var i = 0; i < resources.length; i++) {
             resource = resources[i];
             localId = uniqueId();
-            resource['___cloudkit_local_id___'] = localId;
-            collections[name].insertFromRemote(resource.document);
+            doc = TAFFY.JSON.parse(resource.document);
+            doc['___cloudkit_local_id___'] = localId;
+            collections[name].insertFromRemote(doc);
             meta[localId] = {
               uri: resource.uri,
               etag: resource.etag,
