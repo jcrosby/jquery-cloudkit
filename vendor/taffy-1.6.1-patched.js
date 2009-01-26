@@ -630,6 +630,14 @@ var TAFFY = function (obj) {
             }
         });
     } ,
+    
+    // PATCH - update without callbacks
+    updateFromRemote : function(updateObj) {
+      // TODO adjust update method to take extra arg, passed by this method
+      var updateIndex = bDexArray({'___cloudkit_local_id___':updateObj['___cloudkit_local_id___']}, this.find);
+      TOb[updateIndex] = T.mergeObj(TOb[updateIndex], updateObj);
+      return updateIndex;
+    },
 
     // ****************************************
     // *

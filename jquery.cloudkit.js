@@ -97,7 +97,44 @@
           if (response.status == 200) {
             options.success();
           } else {
-            options.error(response.status);
+            // default 412 strategy is progressive diff/merge.
+            // first cut is to get current version, then update.
+            // TODO use callback to alter this behavior
+            if (response.status == 412) {
+              $.ajax({
+                type: 'GET',
+                url: metadata.uri,
+                dataType: 'json',
+                processData: false,
+                complete: function(response, statusText) {
+                  if (response.status == 200) {
+                    var currentData = TAFFY.JSON.parse(response.responseText);
+                    currentData['___cloudkit_local_id___'] = localId;
+                    collections[name].updateFromRemote(currentData);
+                    meta[localId] = {
+                      uri: metadata.uri,
+                      etag: response.getResponseHeader('ETag'),
+                      last_modified: response.getResponseHeader('Last-Modified')
+                    };
+                    collections[name].update(data, currentData, {
+                      success: function() {
+                        options.success();
+                      },
+                      error: function(status) {
+                        options.error(status);
+                      }
+                    });
+                  } else {
+                    options.error(response.status);
+                  }
+                }
+              });
+              
+            } else {
+              // TODO consider custom behavior for:
+              // 400, 401, 404, 405, 410, 422
+              options.error(response.status);
+            }
           }
         }
       });
