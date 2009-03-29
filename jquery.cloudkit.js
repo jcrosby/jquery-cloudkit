@@ -129,7 +129,7 @@
                   }
                 }
               });
-              
+
             } else {
               // TODO consider custom behavior for:
               // 400, 401, 404, 405, 410, 422
@@ -193,7 +193,7 @@
               last_modified: resource.last_modified
             };
           }
-          options.success();
+          populateCollectionsFromRemote(index+1,options);
         } else {
           options.error(response.status);
         }
