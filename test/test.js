@@ -1,8 +1,26 @@
 var tests = function($) {
 
-  var store = jQuery.cloudkit; // TODO clear the existing objects on the server
+  var resetRemote = function() {
+    $.ajax({
+      type: 'POST',
+      url: '/test_reset',
+      async: false
+    });
+  };
 
-  jqUnit.test('boot', function() { // TODO add test for loading existing objects
+  var postData = function(collection, data) {
+    $.ajax({
+      type: 'POST',
+      url: '/'+collection,
+      data: TAFFY.JSON.stringify(data),
+      async: false
+    });
+  };
+
+  var store = jQuery.cloudkit;
+
+  jqUnit.test('boot', function() {
+    resetRemote();
     jqUnit.expect(4);
     jqUnit.stop();
     store.boot({
@@ -16,19 +34,35 @@ var tests = function($) {
     });
   });
 
-  jqUnit.test('insert', function() {
+  jqUnit.test('boot with existing data', function() {
+    resetRemote();
+    jqUnit.expect(2);
+    jqUnit.stop();
+    postData('notes', {'foo':'bar'});
+    postData('notes', {'foo':'baz'});
+    postData('things', {'a':'b'});
+    store.boot({
+      success: function() {
+        jqUnit.ok(store.collection('notes').get().length == 2, "Booting should load the notes collection data");
+        jqUnit.ok(store.collection('things').get().length == 1, "Booting should load the things collection data");
+        jqUnit.start();
+      }
+    });
+  });
+
+  jqUnit.test('insert', function() { // TODO test that CloudKit has the resource
+    resetRemote();
     jqUnit.expect(3);
     jqUnit.stop();
     store.boot({
       success: function() {
-        collection_size = store.collection('things').get().length;
         store.collection('things').insert({name:"box"}, {
           success: function(index) {
-            jqUnit.ok(index == collection_size, "The first insert should return an index equal to the existing collection size");
+            jqUnit.ok(index == 0, "The first insert should return the proper index from TaffyDB");
             store.collection('things').insert({name:"book"}, {
               success: function(index) {
-                jqUnit.ok(index == collection_size+1, "The second insert should return an index that is 1 more then the previous index");
-                jqUnit.ok(store.collection('things').get().length == collection_size+2, "The store should have two more items that it had after booting");
+                jqUnit.ok(index == 1, "The second insert should return an index of 1");
+                jqUnit.ok(store.collection('things').get().length == 2, "The store should have two items after booting");
                 jqUnit.start();
               }
             });
@@ -39,6 +73,7 @@ var tests = function($) {
   });
 
   jqUnit.test('get', function() {
+    resetRemote();
     jqUnit.expect(1);
     jqUnit.stop();
     store.boot({
@@ -57,7 +92,8 @@ var tests = function($) {
     });
   });
 
-  jqUnit.test('update', function() {
+  jqUnit.test('update', function() { // TODO test for proper resource update/metadata sync
+    resetRemote();
     jqUnit.expect(1);
     jqUnit.stop();
     store.boot({
@@ -76,17 +112,17 @@ var tests = function($) {
     });
   });
 
-  jqUnit.test('delete', function() {
+  jqUnit.test('delete', function() { // TODO test for 410 from CloudKit
+    resetRemote();
     jqUnit.expect(1);
     jqUnit.stop();
     store.boot({
       success: function() {
-        collection_size = store.collection('things').get().length;
         store.collection('things').insert({name:"box", color:"red"}, {
           success: function() {
             store.collection('things').remove({name:"box"}, {
               success: function() {
-                jqUnit.ok(collection_size == store.collection('things').get().length, "The remove method should remove the object");
+                jqUnit.ok(0 == store.collection('things').get().length, "The remove method should remove the object");
                 jqUnit.start();
               }
             });
