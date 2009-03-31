@@ -80,6 +80,7 @@
     // map update to PUT
     collections[name].onUpdate = function(data, original, options) {
       localId = original['___cloudkit_local_id___'];
+      delete data['___cloudkit_local_id___']
       metadata = meta[localId];
       $.ajax({
         type: 'PUT',
