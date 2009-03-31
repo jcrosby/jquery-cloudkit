@@ -50,9 +50,9 @@ var tests = function($) {
     });
   });
 
-  jqUnit.test('insert', function() { // TODO test that CloudKit has the resource
+  jqUnit.test('insert', function() {
     resetRemote();
-    jqUnit.expect(3);
+    jqUnit.expect(4);
     jqUnit.stop();
     store.boot({
       success: function() {
@@ -63,6 +63,14 @@ var tests = function($) {
               success: function(index) {
                 jqUnit.ok(index == 1, "The second insert should return an index of 1");
                 jqUnit.ok(store.collection('things').get().length == 2, "The store should have two items after booting");
+                var result = TAFFY.JSON.parse(
+                  $.ajax({
+                    type: 'GET',
+                    url: '/things',
+                    async: false
+                  }).responseText
+                ).total;
+                jqUnit.ok(result == 2);
                 jqUnit.start();
               }
             });
