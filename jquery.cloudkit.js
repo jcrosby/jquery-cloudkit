@@ -4,7 +4,7 @@
 //
 // Copyright (c) 2008, 2009 Jon Crosby http://joncrosby.me
 //
-// For the complete source with the patched/bundled TaffyDB dependency,
+// For the complete source with the bundled dependencies,
 // run 'rake dist' and use the contents of the dist directory.
 //
 //------------------------------------------------------------------------------
@@ -14,32 +14,208 @@
   $.cloudkit = $.cloudkit || {};
 
   //----------------------------------------------------------------------------
+  // Resource Model
+  //----------------------------------------------------------------------------
+  var buildResource = function(collection, spec, metadata) {
+    var that = {};
+    var meta = {};
+    var json = spec;
+
+    // return a key that is unique across all local items
+    var generateId = function() {
+      return (new Date).getTime() + '-' + Math.floor(Math.random()*10000);
+    };
+
+    var saveFromRemote = function() {
+      meta = metadata;
+      meta.id = generateId();
+    };
+
+    that.save = function(callbacks) {
+      if (!(typeof metadata === 'undefined')) {
+        return saveFromRemote();
+      }
+      $.ajax({
+        type: 'POST',
+        url: collection,
+        data: JSON.stringify(spec),
+        contentType: 'application/json',
+        dataType: 'json',
+        processData: false,
+        complete: function(response, statusText) {
+          if (response.status == 201) {
+            meta = JSON.parse(response.responseText);
+            meta.id = generateId();
+            callbacks.success();
+          } else {
+            callbacks.error(response.status);
+          }
+        }
+      });
+    };
+
+    that.update = function(spec, callbacks) {
+      var id = meta.id;
+      $.ajax({
+        type: 'PUT',
+        url: meta.uri,
+        data: JSON.stringify(spec),
+        contentType: 'application/json',
+        dataType: 'json',
+        beforeSend: function(xhr) {
+          xhr.setRequestHeader('If-Match', meta.etag);
+        },
+        processData: false,
+        complete: function(response, statusText) {
+          if (response.status == 200) {
+            meta = JSON.parse(response.responseText);
+            meta.id = id;
+            json = spec;
+            callbacks.success();
+          } else {
+            // TODO implement default 412 strategy as progressive diff/merge
+            callbacks.error(response.status);
+          }
+        }
+      });
+    };
+
+    that.destroy = function(callbacks) {
+      var id = meta.id
+      $.ajax({
+        type: 'DELETE',
+        url: meta.uri,
+        dataType: 'json',
+        beforeSend: function(xhr) {
+          xhr.setRequestHeader('If-Match', meta.etag);
+        },
+        processData: false,
+        complete: function(response, statusText) {
+          meta = JSON.parse(response.responseText);
+          meta.id = id;
+          if (response.status == 200) {
+            meta.deleted = true;
+            callbacks.success();
+          } else {
+            callbacks.error(response.status);
+          }
+        }
+      });
+    };
+
+    that.json = function() {
+      return json;
+    };
+
+    that.id = function() {
+      return meta.id;
+    };
+
+    that.uri = function() {
+      return meta.uri;
+    };
+
+    that.isDeleted = function() {
+      return (meta.deleted == true);
+    }
+
+    return that;
+  };
+
+  //----------------------------------------------------------------------------
+  // Internal Data Store
+  //----------------------------------------------------------------------------
+  var buildStore = function(collection) {
+    var that = {};
+
+    var key = function(resource) {
+      return collection+resource.id();
+    };
+
+    var persist = function(resource) {
+      var k = key(resource);
+      $.data(window, k, resource);
+      var index = $.data(window, collection+'index') || [];
+      index.push(k);
+      $.data(window, collection+'index', index);
+    };
+
+    that.create = function(spec, callbacks) {
+      resource = buildResource(collection, spec);
+      resource.save({
+        success: function() {
+          persist(resource);
+          callbacks.success(resource);
+        },
+        error: function(status) {
+          callbacks.error(status);
+        }
+      });
+    };
+
+    that.createFromRemote = function(spec, metadata) {
+      resource = buildResource(collection, spec, metadata);
+      resource.save();
+      persist(resource);
+      return resource;
+    };
+
+    that.all = function(spec) {
+      // TODO - don't ignore spec
+      var result = [];
+      var index = $.data(window, collection+'index');
+      $(index).each(function(count, id) {
+        var item = $.data(window, id);
+        if (!item.isDeleted()) {
+          result.push(item);
+        }
+      });
+      return result;
+    };
+
+    that.get = function(id) {
+      return $.data(window, collection+id);
+    };
+
+    that.query = function(spec) {
+      var jsonObjects = [];
+      var self = this;
+      $(this.all()).each(function(index, item) {
+        json = $.extend(item.json(), {'___id___':item.id()});
+        jsonObjects.push(json);
+      });
+      var query_result = JSONQuery(spec, jsonObjects);
+      var resources = []
+      $(query_result).each(function(index, item) {
+        resources.push(self.get(item['___id___']));
+      });
+      return resources;
+    }
+
+    return that;
+  };
+
+  //----------------------------------------------------------------------------
   // Private API
   //----------------------------------------------------------------------------
 
   var collectionURIs = []; // collection URIs found during boot via discovery
-  var collections    = {}; // TaffyDB stores, one per remote resource collection
-  var meta           = {}; // metadata for each local object
-
-  // return a key that is unique across all local items
-  var uniqueId = function() {
-    return (new Date).getTime() + '-' + Math.floor(Math.random()*10000);
-  };
+  var collections    = {}; // local stores, one per remote resource collection
 
   // load remote collection URIs
-  var loadMeta = function(options) {
+  var loadMeta = function(callbacks) {
     $.ajax({
       type: 'GET',
       url: '/cloudkit-meta',
       complete: function(response, statusText) {
-        data = TAFFY.JSON.parse(response.responseText);
+        data = JSON.parse(response.responseText);
         if (response.status == 200) {
           collectionURIs = data.uris;
-          options.success();
+          callbacks.success();
         } else if (response.status >= 400) {
-          options.error(response.status);
+          callbacks.error(response.status);
         } else {
-          options.error('unexpected error');
+          callbacks.error('unexpected error');
         }
       }
     });
@@ -47,130 +223,15 @@
 
   // configure a local collection
   var configureCollection = function(collection) {
-
-    // set up TaffyDB
-    name = collection.replace(/^\//, '');
-    collections[name] = new TAFFY([]);
-    collections[name].config.set('map', function(item) {
-      delete item['___cloudkit_local_id___'];
-    });
-
-    // map insert to POST
-    collections[name].onInsert = function(data, options) {
-      $.ajax({
-        type: 'POST',
-        url: collection,
-        data: TAFFY.JSON.stringify(data),
-        contentType: 'application/json',
-        dataType: 'json',
-        processData: false,
-        complete: function(response, statusText) {
-          localId = uniqueId();
-          meta[localId] = TAFFY.JSON.parse(response.responseText);
-          data['___cloudkit_local_id___'] = localId;
-          if (response.status == 201) {
-            options.success();
-          } else {
-            options.error(response.status);
-          }
-        }
-      });
-    };
-
-    // map update to PUT
-    collections[name].onUpdate = function(data, original, options) {
-      localId = original['___cloudkit_local_id___'];
-      delete data['___cloudkit_local_id___']
-      metadata = meta[localId];
-      $.ajax({
-        type: 'PUT',
-        url: metadata.uri,
-        data: TAFFY.JSON.stringify(data),
-        contentType: 'application/json',
-        dataType: 'json',
-        beforeSend: function(xhr) {
-          xhr.setRequestHeader('If-Match', metadata.etag);
-        },
-        processData: false,
-        complete: function(response, statusText) {
-          meta[localId] = TAFFY.JSON.parse(response.responseText);
-          data['___cloudkit_local_id___'] = localId;
-          if (response.status == 200) {
-            options.success();
-          } else {
-            // default 412 strategy is progressive diff/merge.
-            // first cut is to get current version, then update.
-            // TODO use callback to alter this behavior
-            if (response.status == 412) {
-              $.ajax({
-                type: 'GET',
-                url: metadata.uri,
-                dataType: 'json',
-                processData: false,
-                complete: function(response, statusText) {
-                  if (response.status == 200) {
-                    var currentData = TAFFY.JSON.parse(response.responseText);
-                    currentData['___cloudkit_local_id___'] = localId;
-                    collections[name].updateFromRemote(currentData);
-                    meta[localId] = {
-                      uri: metadata.uri,
-                      etag: response.getResponseHeader('ETag'),
-                      last_modified: response.getResponseHeader('Last-Modified')
-                    };
-                    collections[name].update(data, currentData, {
-                      success: function() {
-                        options.success();
-                      },
-                      error: function(status) {
-                        options.error(status);
-                      }
-                    });
-                  } else {
-                    options.error(response.status);
-                  }
-                }
-              });
-
-            } else {
-              // TODO consider custom behavior for:
-              // 400, 401, 404, 405, 410, 422
-              options.error(response.status);
-            }
-          }
-        }
-      });
-    };
-
-    // map remove to DELETE
-    collections[name].onRemove = function(data, options) {
-      localId = data['___cloudkit_local_id___'];
-      metadata = meta[localId];
-      $.ajax({
-        type: 'DELETE',
-        url: metadata.uri,
-        dataType: 'json',
-        beforeSend: function(xhr) {
-          xhr.setRequestHeader('If-Match', metadata.etag);
-        },
-        processData: false,
-        complete: function(response, statusText) {
-          updated_metadata = TAFFY.JSON.parse(response.responseText);
-          meta[localId] = updated_metadata;
-          if (response.status == 200) {
-            meta['deleted'] = true;
-            options.success();
-          } else {
-            options.error(response.status);
-          }
-        }
-      });
-    };
+    $.data(window, collection+'index', []);
+    var name = collection.replace(/^\//, '');
+    collections[name] = buildStore(collection);
   };
 
   // load remote data into local store
-  var populateCollectionsFromRemote = function(index, options) {
+  var populateCollectionsFromRemote = function(index, callbacks) {
     if (index == collectionURIs.length) {
-      options.success();
+      callbacks.success();
       return;
     }
     $.ajax({
@@ -180,23 +241,22 @@
       processData: false,
       complete: function(response, statusText) {
         if (response.status == 200) {
-          resources = TAFFY.JSON.parse(response.responseText).documents;
-          name = collectionURIs[index].replace(/^\//, '');
+          var resources = JSON.parse(response.responseText).documents;
+          var name = collectionURIs[index].replace(/^\//, '');
           for (var i = 0; i < resources.length; i++) {
-            resource = resources[i];
-            localId = uniqueId();
-            doc = TAFFY.JSON.parse(resource.document);
-            doc['___cloudkit_local_id___'] = localId;
-            collections[name].insertFromRemote(doc);
-            meta[localId] = {
-              uri: resource.uri,
-              etag: resource.etag,
-              last_modified: resource.last_modified
-            };
+            var resource = resources[i];
+            collections[name].createFromRemote(
+              JSON.parse(resource.document),
+              {
+                uri: resource.uri,
+                etag: resource.etag,
+                last_modified: resource.last_modified
+              }
+            );
           }
-          populateCollectionsFromRemote(index+1,options);
+          populateCollectionsFromRemote(index+1, callbacks);
         } else {
-          options.error(response.status);
+          callbacks.error(response.status);
         }
       }
     });
@@ -210,10 +270,9 @@
     //--------------------------------------------------------------------------
 
     // setup the local store
-    boot: function(options) {
+    boot: function(callbacks) {
       collectionURIs = [];
       collections = [];
-      meta = {};
       loadMeta({
         success: function() {
           $(collectionURIs).each(function(index, collection) {
@@ -221,32 +280,27 @@
           });
           populateCollectionsFromRemote(0, {
             success: function() {
-              options.success();
+              callbacks.success();
             },
             error: function(status) {
-              options.error(status);
+              callbacks.error(status);
             }
           });
         },
         error: function(status) {
-          options.error(status);
+          callbacks.error(status);
         }
       });
     },
 
-    // return all TaffyDB collections
+    // return all collections
     collections: function() {
       return collections;
     },
 
-    // return a specific TaffyDB collection
+    // return a specific collection
     collection: function(name) {
       return this.collections()[name];
-    },
-
-    // return the metadata for a given local ID
-    metaObject: function(localId) {
-      return meta[localId];
     }
   });
 })(jQuery);
