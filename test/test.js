@@ -126,12 +126,13 @@ test('destroy', function() {
     success: function() {
       store.collection('things').create({name:"box", color:"red"}, {
         success: function(resource) {
+          var original_uri = resource.uri();
           resource.destroy({
             success: function() {
               ok(0 == store.collection('things').all().length, "The destroy method should remove the object");
               var result = $.ajax({
                 type: 'GET',
-                url: resource.uri(),
+                url: original_uri,
                 async: false
               });
               ok(410 == result.status, "The destroy method should remove the remote resource");
